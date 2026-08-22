@@ -168,6 +168,8 @@ interface SettingsState {
 
   setFloatingBallLocked: (locked: boolean) => Promise<void>;
 
+  setFloatingBallAutoHide: (autoHide: boolean) => Promise<void>;
+
   /** 设置悬浮球手势映射 */
   setFloatingBallGestures: (gestures: Record<string, string>) => Promise<void>;
 
@@ -482,6 +484,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setFloatingBallLocked: async (locked: boolean) => {
     await get().updateConfig({ floatingBallLocked: locked });
+  },
+
+  setFloatingBallAutoHide: async (autoHide: boolean) => {
+    await get().updateConfig({ floatingBallAutoHide: autoHide });
   },
 
   setFloatingBallGestures: async (gestures: Record<string, string>) => {

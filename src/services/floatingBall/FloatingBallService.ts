@@ -43,12 +43,13 @@ class FloatingBallService {
     const sizeDp = config.floatingBallSize ?? 48;
     const opacity = config.floatingBallOpacity ?? 0.8;
     const locked = config.floatingBallLocked ?? true;
+    const autoHide = config.floatingBallAutoHide ?? true;
     const actions: FloatingBallGestureMap = config.floatingBallGestures ?? {};
     try {
       if (isFloatingBallShowing()) {
-        updateFloatingBallConfig(sizeDp, opacity, locked, actions);
+        updateFloatingBallConfig(sizeDp, opacity, locked, autoHide, actions);
       } else {
-        showFloatingBall(sizeDp, opacity, locked, actions);
+        showFloatingBall(sizeDp, opacity, locked, autoHide, actions);
       }
     } catch (e) {
       console.error('[FloatingBallService] Failed to show floating ball:', e);

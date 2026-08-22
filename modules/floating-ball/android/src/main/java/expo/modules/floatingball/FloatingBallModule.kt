@@ -51,7 +51,7 @@ class FloatingBallModule : Module() {
 
         Function("isShowing") { ballView != null }
 
-        Function("show") { sizeDp: Double, opacity: Double, locked: Boolean, actions: Map<String, String> ->
+        Function("show") { sizeDp: Double, opacity: Double, locked: Boolean, autoHide: Boolean, actions: Map<String, String> ->
             val context = appContext.reactContext ?: return@Function false
             if (!Settings.canDrawOverlays(context)) return@Function false
             if (actions.isNotEmpty()) {
@@ -59,7 +59,7 @@ class FloatingBallModule : Module() {
             } else {
                 currentActions = DEFAULT_ACTIONS
             }
-            showBall(context, sizeDp.toInt().coerceIn(28, 96), opacity.toFloat(), locked)
+            showBall(context, sizeDp.toInt().coerceIn(28, 96), opacity.toFloat(), locked, autoHide)
             true
         }
 
@@ -67,13 +67,14 @@ class FloatingBallModule : Module() {
             removeBall()
         }
 
-        Function("updateConfig") { sizeDp: Double, opacity: Double, locked: Boolean, actions: Map<String, String> ->
+        Function("updateConfig") { sizeDp: Double, opacity: Double, locked: Boolean, autoHide: Boolean, actions: Map<String, String> ->
             val context = appContext.reactContext ?: return@Function false
             if (actions.isNotEmpty()) {
                 currentActions = DEFAULT_ACTIONS + actions.filterKeys { it.isNotBlank() }
             }
             val view = ballView ?: return@Function false
             view.isLocked = locked
+            view.autoHideDock = autoHide
             val lp = layoutParams ?: return@Function false
             val sizePx = dp2px(context, sizeDp.toInt().coerceIn(28, 96))
             lp.width = sizePx
@@ -115,10 +116,11 @@ class FloatingBallModule : Module() {
         (dp * context.resources.displayMetrics.density).toInt()
 
     @SuppressLint("InflateParams")
-    private fun showBall(context: Context, sizeDp: Int, opacity: Float, locked: Boolean) {
+    private fun showBall(context: Context, sizeDp: Int, opacity: Float, locked: Boolean, autoHide: Boolean) {
         if (ballView != null) {
             updateConfigInternal(context, sizeDp, opacity)
             ballView?.isLocked = locked
+            ballView?.autoHideDock = autoHide
             return
         }
         val sizePx = dp2px(context, sizeDp)
@@ -153,6 +155,7 @@ class FloatingBallModule : Module() {
 
         view.setWindowPosition(initialX, initialY)
         view.isLocked = locked
+        view.autoHideDock = autoHide
         windowManager(context)?.addView(view, lp)
         ballView = view
         layoutParams = lp

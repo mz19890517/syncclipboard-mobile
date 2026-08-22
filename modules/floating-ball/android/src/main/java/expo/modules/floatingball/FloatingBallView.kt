@@ -41,6 +41,13 @@ class FloatingBallView(
         private const val GESTURE_NONE = ""
         /** 贴边停靠后露出屏幕内的宽度（dp），FV 悬浮球式"细条" */
         private const val DOCK_PEEK_DP = 8
+        /** 锁定时橡皮筋反馈的最大位移（dp） */
+        private const val RUBBERBAND_MAX_DP = 14f
+        /** 防烧屏漂移间隔（毫秒） */
+        private const val DRIFT_INTERVAL_MS = 90_000L
+        /** 防烧屏漂移偏移序列（dp），围绕基准位置轮换 */
+        private val DRIFT_OFFSETS_DP =
+            arrayOf(floatArrayOf(-6f, -2f), floatArrayOf(6f, -2f), floatArrayOf(6f, 3f), floatArrayOf(-6f, 3f))
     }
 
     private val density = resources.displayMetrics.density
@@ -70,6 +77,8 @@ class FloatingBallView(
     // 增量拖动的小数余量累积，避免 toInt 取整造成的漂移
     private var pendingDx = 0f
     private var pendingDy = 0f
+    private var lastAppliedDx = 0f
+    private var lastAppliedDy = 0f
     private var velocityX = 0f
     private var velocityY = 0f
     private var longPressFired = false
@@ -85,14 +94,21 @@ class FloatingBallView(
     var isLocked = true
         set(value) {
             field = value
-            if (value && isDragging) {
-                isDragging = false
-                snapToNearestEdge(save = false)
+            if (value) {
+                if (isDragging) {
+                    isDragging = false
+                    snapToNearestEdge(save = false)
+                }
+                springBack()
             }
         }
 
     /** 当前停靠状态：'l'/'r' 为贴边细条，null 为完全可见 */
     private var dockedSide: Char? = null
+
+    /** 吸附后是否自动缩为细条；关闭则保持完整显示 */
+    @Volatile
+    var autoHideDock = true
 
     /** 当前窗口坐标，由 Module 同步 */
     var lpX = 0
@@ -100,9 +116,34 @@ class FloatingBallView(
     var lpY = 0
         private set
 
+    // 防烧屏漂移：围绕基准位置小幅度轮换偏移
+    private val driftHandler = Handler(Looper.getMainLooper())
+    private var driftIndex = 0
+    private var baseLpX = 0
+    private var baseLpY = 0
+    private var isTouching = false
+
+    private val driftRunnable =
+        object : Runnable {
+            override fun run() {
+                if (!isTouching && !isDragging && animator == null && width > 0) {
+                    val off = DRIFT_OFFSETS_DP[driftIndex % DRIFT_OFFSETS_DP.size]
+                    driftIndex++
+                    val tx = baseLpX + (off[0] * density).toInt()
+                    val ty = (baseLpY + (off[1] * density).toInt()).clampToScreenY()
+                    lpX = tx
+                    lpY = ty
+                    onPositionChanged(lpX, lpY)
+                }
+                driftHandler.postDelayed(this, DRIFT_INTERVAL_MS)
+            }
+        }
+
     fun setWindowPosition(x: Int, y: Int) {
         lpX = x
         lpY = y
+        baseLpX = x
+        baseLpY = y
     }
 
     fun setOpacity(opacity: Float) {
@@ -155,6 +196,7 @@ class FloatingBallView(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 cancelAnimations()
+                isTouching = true
                 downRawX = event.rawX
                 downRawY = event.rawY
                 downTime = System.currentTimeMillis()
@@ -163,6 +205,8 @@ class FloatingBallView(
                 lastMoveY = downRawY
                 pendingDx = 0f
                 pendingDy = 0f
+                lastAppliedDx = 0f
+                lastAppliedDy = 0f
                 velocityX = 0f
                 velocityY = 0f
                 isDragging = false
@@ -173,27 +217,28 @@ class FloatingBallView(
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                // 速度采样必须无条件执行，否则锁定状态下轻扫手势失效
+                val now = System.currentTimeMillis()
+                val dt = (now - lastMoveTime).coerceAtLeast(1)
+                val instVX = (event.rawX - lastMoveX) / dt * 1000f
+                val instVY = (event.rawY - lastMoveY) / dt * 1000f
+                velocityX = velocityX * 0.7f + instVX * 0.3f
+                velocityY = velocityY * 0.7f + instVY * 0.3f
+                lastMoveTime = now
+                lastMoveX = event.rawX
+                lastMoveY = event.rawY
+
                 val dxTotal = event.rawX - downRawX
                 val dyTotal = event.rawY - downRawY
                 if (!isDragging && hypot(dxTotal, dyTotal) > touchSlop) {
                     cancelLongPressTimer()
-                    // 锁定时只取消长按，不进入拖动（滑动仍可触发轻扫手势）
                     isDragging = !isLocked
                 }
                 if (isDragging) {
-                    val now = System.currentTimeMillis()
-                    val dt = (now - lastMoveTime).coerceAtLeast(1)
-                    val instVX = (event.rawX - lastMoveX) / dt * 1000f
-                    val instVY = (event.rawY - lastMoveY) / dt * 1000f
-                    velocityX = velocityX * 0.7f + instVX * 0.3f
-                    velocityY = velocityY * 0.7f + instVY * 0.3f
-                    val stepX = event.rawX - lastMoveX
-                    val stepY = event.rawY - lastMoveY
-                    lastMoveTime = now
-                    lastMoveX = event.rawX
-                    lastMoveY = event.rawY
-                    pendingDx += stepX
-                    pendingDy += stepY
+                    pendingDx += dxTotal - lastAppliedDx
+                    pendingDy += dyTotal - lastAppliedDy
+                    lastAppliedDx = dxTotal
+                    lastAppliedDy = dyTotal
                     val appliedX = pendingDx.toInt()
                     val appliedY = pendingDy.toInt()
                     if (appliedX != 0 || appliedY != 0) {
@@ -201,16 +246,34 @@ class FloatingBallView(
                         pendingDy -= appliedY
                         moveBy(appliedX, appliedY)
                     }
+                } else if (isLocked && dockedSide == null) {
+                    // 锁定橡皮筋反馈：跟随手指小幅位移，松手弹回
+                    val maxOffset = RUBBERBAND_MAX_DP * density
+                    translationX = dxTotal.coerceIn(-maxOffset, maxOffset)
+                    translationY = dyTotal.coerceIn(-maxOffset, maxOffset)
                 }
                 return true
             }
-            MotionEvent.ACTION_UP -> finishTouch(event)
+            MotionEvent.ACTION_UP -> {
+                isTouching = false
+                springBack()
+                finishTouch(event)
+            }
             MotionEvent.ACTION_CANCEL -> {
+                isTouching = false
                 cancelLongPressTimer()
+                springBack()
                 if (isDragging) snapToNearestEdge(save = false)
             }
         }
         return super.onTouchEvent(event) || true
+    }
+
+    /** 锁定橡皮筋回弹 */
+    private fun springBack() {
+        if (translationX != 0f || translationY != 0f) {
+            animate().translationX(0f).translationY(0f).setDuration(150).start()
+        }
     }
 
     private fun finishTouch(event: MotionEvent) {
@@ -310,6 +373,8 @@ class FloatingBallView(
         dockedSide = null
         lpX = x.coerceAtLeast(0)
         lpY = y.clampToScreenY()
+        baseLpX = lpX
+        baseLpY = lpY
         onPositionChanged(lpX, lpY)
     }
 
@@ -319,18 +384,29 @@ class FloatingBallView(
         val side = if (lpX + width / 2 < screenWidth / 2) 'l' else 'r'
         val exposedX = if (side == 'l') 0 else screenWidth - width
         animateTo(exposedX, lpY.clampToScreenY()) {
+            baseLpX = lpX
+            baseLpY = lpY
             if (save) onPositionSaved(lpX, lpY.clampToScreenY())
             dockToSide(side)
         }
     }
 
-    /** 停靠为贴边细条：大部分移出屏幕，只留一条可触摸的边 */
+    /** 停靠为贴边细条：大部分移出屏幕，只留一条可触摸的边；关闭自动隐藏时保持原位 */
     private fun dockToSide(side: Char) {
+        if (!autoHideDock) {
+            dockedSide = null
+            baseLpX = lpX
+            baseLpY = lpY
+            return
+        }
         dockedSide = side
         val peek = (DOCK_PEEK_DP * density).toInt()
         val screenWidth = resources.displayMetrics.widthPixels
         lpX = if (side == 'l') -(width - peek) else screenWidth - peek
-        onPositionChanged(lpX, lpY.clampToScreenY())
+        lpY = lpY.clampToScreenY()
+        baseLpX = lpX
+        baseLpY = lpY
+        onPositionChanged(lpX, lpY)
     }
 
     /** 从停靠状态弹出恢复完全可见（按下时调用） */
@@ -371,9 +447,20 @@ class FloatingBallView(
         animator = null
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        driftHandler.postDelayed(driftRunnable, DRIFT_INTERVAL_MS)
+    }
+
+    override fun onDetachedFromWindow() {
+        driftHandler.removeCallbacks(driftRunnable)
+        super.onDetachedFromWindow()
+    }
+
     fun cleanup() {
         cancelLongPressTimer()
         pendingSingleTap?.let { tapHandler.removeCallbacks(it) }
         cancelAnimations()
+        driftHandler.removeCallbacks(driftRunnable)
     }
 }

@@ -32,12 +32,19 @@ export type FloatingBallGestureMap = Partial<Record<FloatingBallGesture, Floatin
 
 interface FloatingBallModuleInterface {
   isShowing(): boolean;
-  show(sizeDp: number, opacity: number, locked: boolean, actions: Record<string, string>): boolean;
+  show(
+    sizeDp: number,
+    opacity: number,
+    locked: boolean,
+    autoHide: boolean,
+    actions: Record<string, string>
+  ): boolean;
   hide(): void;
   updateConfig(
     sizeDp: number,
     opacity: number,
     locked: boolean,
+    autoHide: boolean,
     actions: Record<string, string>
   ): boolean;
   resetPosition(): void;
@@ -56,10 +63,11 @@ export function showFloatingBall(
   sizeDp: number,
   opacity: number,
   locked = true,
+  autoHide = true,
   actions: FloatingBallGestureMap = {}
 ): boolean {
   if (!nativeModule) return false;
-  return nativeModule.show(sizeDp, opacity, locked, sanitizeActions(actions));
+  return nativeModule.show(sizeDp, opacity, locked, autoHide, sanitizeActions(actions));
 }
 
 /** 隐藏悬浮球 */
@@ -79,10 +87,11 @@ export function updateFloatingBallConfig(
   sizeDp: number,
   opacity: number,
   locked = true,
+  autoHide = true,
   actions: FloatingBallGestureMap = {}
 ): boolean {
   if (!nativeModule) return false;
-  return nativeModule.updateConfig(sizeDp, opacity, locked, sanitizeActions(actions));
+  return nativeModule.updateConfig(sizeDp, opacity, locked, autoHide, sanitizeActions(actions));
 }
 
 /** 清除记忆的悬浮球位置 */

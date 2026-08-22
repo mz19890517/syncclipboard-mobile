@@ -14,13 +14,14 @@ import {
   Alert,
   FlatList,
   useWindowDimensions,
+  Platform,
+  ToastAndroid,
 } from 'react-native';
 import { X } from 'react-native-feather';
 import { useTranslation } from 'react-i18next';
 import { HistoryListItem } from '@/components/HistoryListItem';
 import { useTheme } from '@/hooks/useTheme';
 import { useHistoryStore } from '@/stores/historyStore';
-import { useMessageStore } from '@/stores/messageStore';
 import type { HistoryItem } from '@/types/clipboard';
 import type { HistoryFilter } from '@/types/storage';
 import { historyStorage } from '@/storage';
@@ -75,7 +76,11 @@ export function FloatingClipboardPanelScreen({
   const searchItems = useHistoryStore((s) => s.searchItems);
   const toggleStar = useHistoryStore((s) => s.toggleStar);
   const deleteItem = useHistoryStore((s) => s.deleteItem);
-  const { showMessage } = useMessageStore();
+
+  /** 面板独立于主界面运行，store 级提示无挂载容器，直接用系统 Toast（与桌面快捷方式一致） */
+  const notify = useCallback((msg: string) => {
+    if (Platform.OS === 'android') ToastAndroid.show(msg, ToastAndroid.SHORT);
+  }, []);
 
   const [activeTab, setActiveTab] = useState<FloatingPanelType>(panelType);
   const [busy, setBusy] = useState<'upload' | 'download' | null>(null);
@@ -88,9 +93,9 @@ export function FloatingClipboardPanelScreen({
       })
       .catch((e: unknown) => {
         console.error('[FloatingPanel] search failed:', e);
-        showMessage(e instanceof Error ? e.message : String(e), 'error');
+        notify(e instanceof Error ? e.message : String(e));
       });
-  }, [activeTab, searchItems, showMessage]);
+  }, [activeTab, searchItems, notify]);
 
   const handleClose = useCallback(() => {
     onComplete();
@@ -112,16 +117,13 @@ export function FloatingClipboardPanelScreen({
         };
         await localClipboard.setClipboardContent(content);
         historyStorage.updateLastAccessed(item.profileHash);
-        showMessage(
-          item.type === 'Image' ? t('clipboard.imageCopied') : t('clipboard.copied'),
-          'success'
-        );
+        notify(item.type === 'Image' ? t('clipboard.imageCopied') : t('clipboard.copied'));
         onComplete();
       } catch (error) {
-        showMessage(error instanceof Error ? error.message : t('clipboard.copyFailed'), 'error');
+        notify(error instanceof Error ? error.message : t('clipboard.copyFailed'));
       }
     },
-    [showMessage, t, onComplete]
+    [notify, t, onComplete]
   );
 
   const handleLongPress = useCallback(
@@ -152,13 +154,13 @@ export function FloatingClipboardPanelScreen({
     setBusy('upload');
     try {
       await uploadLocalClipboard();
-      showMessage(t('quickTile.uploadSuccess'), 'success');
+      notify(t('quickTile.uploadSuccess'));
     } catch {
-      showMessage(t('quickTile.uploadFailed'), 'error');
+      notify(t('quickTile.uploadFailed'));
     } finally {
       setBusy(null);
     }
-  }, [busy, showMessage, t]);
+  }, [busy, notify, t]);
 
   const handleDownload = useCallback(async () => {
     if (busy) return;
@@ -167,13 +169,13 @@ export function FloatingClipboardPanelScreen({
       const signal = new AbortController().signal;
       const content = await fetchRemoteClipboard(signal);
       await setLocalClipboardFromRemote(undefined, signal, content);
-      showMessage(t('quickTile.syncSuccess'), 'success');
+      notify(t('quickTile.syncSuccess'));
     } catch {
-      showMessage(t('quickTile.syncFailed'), 'error');
+      notify(t('quickTile.syncFailed'));
     } finally {
       setBusy(null);
     }
-  }, [busy, showMessage, t]);
+  }, [busy, notify, t]);
 
   const handleOpenApp = useCallback(() => {
     openMainApp();

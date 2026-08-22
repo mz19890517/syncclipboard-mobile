@@ -147,6 +147,9 @@ export interface AppConfig {
   /** 锁定悬浮球位置（锁定时不可拖动，默认锁定） */
   floatingBallLocked: boolean;
 
+  /** 吸附边缘后自动缩为细条（默认开启） */
+  floatingBallAutoHide: boolean;
+
   /** 悬浮球手势 → 动作映射（tap/doubleTap/longPress/swipeUp/swipeDown/swipeLeft/swipeRight） */
   floatingBallGestures: Record<string, string>;
 }
@@ -361,6 +364,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   floatingBallSize: 48, // 默认中号（48dp）
   floatingBallOpacity: 0.8, // 默认 80% 不透明度
   floatingBallLocked: true, // 默认锁定悬浮球位置
+  floatingBallAutoHide: true, // 默认贴边后自动缩为细条
   floatingBallGestures: {
     tap: 'panelAll',
     doubleTap: 'panelImage',

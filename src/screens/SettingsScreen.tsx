@@ -163,6 +163,7 @@ export const SettingsScreen = () => {
     setFloatingBallSize,
     setFloatingBallOpacity,
     setFloatingBallLocked,
+    setFloatingBallAutoHide,
     setFloatingBallGestures,
     updateNetworkAutoSwitch,
   } = useSettingsStore();
@@ -225,6 +226,9 @@ export const SettingsScreen = () => {
   );
   const [localFloatingBallLocked, setLocalFloatingBallLocked] = useState(
     config?.floatingBallLocked ?? true
+  );
+  const [localFloatingBallAutoHide, setLocalFloatingBallAutoHide] = useState(
+    config?.floatingBallAutoHide ?? true
   );
   const [localFloatingBallGestures, setLocalFloatingBallGestures] = useState<
     Record<string, string>
@@ -352,6 +356,10 @@ export const SettingsScreen = () => {
   useEffect(() => {
     setLocalFloatingBallLocked(config?.floatingBallLocked ?? true);
   }, [config?.floatingBallLocked]);
+
+  useEffect(() => {
+    setLocalFloatingBallAutoHide(config?.floatingBallAutoHide ?? true);
+  }, [config?.floatingBallAutoHide]);
 
   useEffect(() => {
     setLocalFloatingBallGestures(config?.floatingBallGestures ?? {});
@@ -812,6 +820,17 @@ export const SettingsScreen = () => {
       await setFloatingBallLocked(locked);
     } catch (error: unknown) {
       setLocalFloatingBallLocked(!locked);
+      showMessage(error instanceof Error ? error.message : t('common.setFailed'), 'error');
+    }
+  };
+
+  // 处理切换贴边自动隐藏
+  const handleToggleFloatingBallAutoHide = async (autoHide: boolean) => {
+    setLocalFloatingBallAutoHide(autoHide);
+    try {
+      await setFloatingBallAutoHide(autoHide);
+    } catch (error: unknown) {
+      setLocalFloatingBallAutoHide(!autoHide);
       showMessage(error instanceof Error ? error.message : t('common.setFailed'), 'error');
     }
   };
@@ -1917,6 +1936,14 @@ export const SettingsScreen = () => {
               description={t('settings.floatingBallLockedDesc')}
               value={localFloatingBallLocked}
               onChange={handleToggleFloatingBallLocked}
+              disabled={!localFloatingBallEnabled}
+            />
+
+            <SettingSwitch
+              label={t('settings.floatingBallAutoHide')}
+              description={t('settings.floatingBallAutoHideDesc')}
+              value={localFloatingBallAutoHide}
+              onChange={handleToggleFloatingBallAutoHide}
               disabled={!localFloatingBallEnabled}
             />
 

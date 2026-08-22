@@ -276,6 +276,8 @@ const en: DeepString<typeof zh> = {
     floatingBallOpacity: 'Opacity',
     floatingBallLocked: 'Lock Ball Position',
     floatingBallLockedDesc: 'When locked the ball cannot be dragged; turn off to move it freely',
+    floatingBallAutoHide: 'Auto-hide at Edge',
+    floatingBallAutoHideDesc: 'Shrink to a sliver after snapping; turn off to stay fully visible',
     gesture_tap: 'Tap',
     gesture_doubleTap: 'Double tap',
     gesture_longPress: 'Long press',
