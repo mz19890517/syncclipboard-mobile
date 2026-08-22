@@ -87,10 +87,15 @@ class FloatingBallModule : Module() {
         Function("resetPosition") {
             prefs?.edit()?.clear()?.apply()
             // 球在显示中时同步回到默认位置（右侧、屏幕上三分之一处）
-            val view = ballView ?: return@Function
-            val context = appContext.reactContext ?: return@Function
-            val screenWidth = context.resources.displayMetrics.widthPixels
-            view.jumpTo(screenWidth - view.width, context.resources.displayMetrics.heightPixels / 3)
+            val context = appContext.reactContext
+            val view = ballView
+            if (context != null && view != null) {
+                val screenWidth = context.resources.displayMetrics.widthPixels
+                view.jumpTo(
+                    screenWidth - view.width,
+                    context.resources.displayMetrics.heightPixels / 3
+                )
+            }
         }
 
         Function("openMainApp") {
