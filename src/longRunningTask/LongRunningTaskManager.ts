@@ -15,6 +15,7 @@ import { smsForwardingTask } from './SmsForwardingTask';
 import { foregroundServiceTask } from './ForegroundServiceTask';
 import { historySyncTask } from './HistorySyncTask';
 import { clipboardMonitorTask } from './ClipboardMonitorTask';
+import { floatingBallTask } from './FloatingBallTask';
 import { historyTrackerTask } from './HistoryTrackerTask';
 import { clipboardSyncTask } from './ClipboardSyncTask';
 import { remoteClipboardMonitorTask } from './RemoteClipboardMonitorTask';
@@ -248,3 +249,5 @@ longRunningTaskManager.register(clipboardSyncTask);
 longRunningTaskManager.register(heartbeatTask);
 // 网络自动切换监听成本低，进程存活时不受后台同步总开关影响。
 longRunningTaskManager.register(networkAutoSwitchTask, true);
+// 悬浮球是 UI 功能，keepAlive 保证其常驻。
+longRunningTaskManager.register(floatingBallTask, true);

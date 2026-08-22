@@ -157,6 +157,18 @@ interface SettingsState {
   /** 设置同步文件保存路径 */
   setSyncFileSavePath: (path: string) => Promise<void>;
 
+  /** 设置悬浮球开关 */
+  setFloatingBallEnabled: (enabled: boolean) => Promise<void>;
+
+  /** 设置悬浮球大小（dp） */
+  setFloatingBallSize: (sizeDp: number) => Promise<void>;
+
+  /** 设置悬浮球不透明度 */
+  setFloatingBallOpacity: (opacity: number) => Promise<void>;
+
+  /** 设置悬浮球手势映射 */
+  setFloatingBallGestures: (gestures: Record<string, string>) => Promise<void>;
+
   // 导入/导出
   /** 导出配置 */
   exportConfig: () => Promise<string>;
@@ -452,6 +464,22 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setSyncFileSavePath: async (path: string) => {
     await get().updateConfig({ syncFileSavePath: path });
+  },
+
+  setFloatingBallEnabled: async (enabled: boolean) => {
+    await get().updateConfig({ floatingBallEnabled: enabled });
+  },
+
+  setFloatingBallSize: async (sizeDp: number) => {
+    await get().updateConfig({ floatingBallSize: sizeDp });
+  },
+
+  setFloatingBallOpacity: async (opacity: number) => {
+    await get().updateConfig({ floatingBallOpacity: opacity });
+  },
+
+  setFloatingBallGestures: async (gestures: Record<string, string>) => {
+    await get().updateConfig({ floatingBallGestures: gestures });
   },
 
   exportConfig: async () => {

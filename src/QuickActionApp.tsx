@@ -18,6 +18,10 @@ import { I18nProvider } from './contexts/I18nContext';
 import { QuickTileLoadingScreen } from './screens/QuickTileLoadingScreen';
 import { ProcessTextScreen } from './screens/ProcessTextScreen';
 import { DirectShareReceiveScreen } from './screens/DirectShareReceiveScreen';
+import {
+  FloatingClipboardPanelScreen,
+  type FloatingPanelType,
+} from './screens/FloatingClipboardPanelScreen';
 import { SyncDirection } from './types/sync';
 import { useSettingsStore } from './stores';
 import { initLogger } from './utils/Logger';
@@ -41,7 +45,11 @@ interface QuickActionAppProps {
   shareMode?: boolean;
   shareData?: ShareData;
   systemTheme?: 'light' | 'dark';
+  /** 悬浮球面板类型（all/text/image/file/fav） */
+  panelType?: string;
 }
+
+const VALID_PANEL_TYPES: FloatingPanelType[] = ['all', 'text', 'image', 'file', 'fav'];
 
 export default function QuickActionApp({
   direction,
@@ -49,6 +57,7 @@ export default function QuickActionApp({
   shareMode,
   shareData,
   systemTheme,
+  panelType,
 }: QuickActionAppProps) {
   const syncDirection = direction === 'upload' ? SyncDirection.Upload : SyncDirection.Download;
   const { loadConfig, isLoaded } = useSettingsStore();
@@ -95,6 +104,23 @@ export default function QuickActionApp({
   }, []);
 
   if (!isLoaded || !isRuntimeReady) return null;
+
+  // Floating ball panel mode: clipboard history panel with type filters
+  if (panelType && VALID_PANEL_TYPES.includes(panelType as FloatingPanelType)) {
+    return (
+      <GestureHandlerRootView style={styles.container}>
+        <I18nProvider>
+          <ThemeProvider systemColorSchemeOverride={systemTheme}>
+            <StatusBar backgroundColor="transparent" translucent barStyle="light-content" />
+            <FloatingClipboardPanelScreen
+              panelType={panelType as FloatingPanelType}
+              onComplete={handleComplete}
+            />
+          </ThemeProvider>
+        </I18nProvider>
+      </GestureHandlerRootView>
+    );
+  }
 
   // Share mode: receive shared content from other apps (direct data, not via expo-sharing)
   if (shareMode && shareData) {

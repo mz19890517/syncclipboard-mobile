@@ -134,6 +134,18 @@ export interface AppConfig {
 
   /** 同步文件保存路径 */
   syncFileSavePath: string;
+
+  /** 是否启用悬浮球（仅 Android） */
+  floatingBallEnabled: boolean;
+
+  /** 悬浮球大小（dp，档位：36/48/60） */
+  floatingBallSize: number;
+
+  /** 悬浮球不透明度（0.6~1） */
+  floatingBallOpacity: number;
+
+  /** 悬浮球手势 → 动作映射（tap/doubleTap/longPress/swipeUp/swipeDown/swipeLeft/swipeRight） */
+  floatingBallGestures: Record<string, string>;
 }
 
 /**
@@ -342,6 +354,18 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   showImageCopyButton: false, // 默认不显示图片复制按钮
   autoSaveSyncFile: false, // 默认关闭自动保存同步文件
   syncFileSavePath: '', // 默认保存路径为空
+  floatingBallEnabled: false, // 默认关闭悬浮球
+  floatingBallSize: 48, // 默认中号（48dp）
+  floatingBallOpacity: 0.8, // 默认 80% 不透明度
+  floatingBallGestures: {
+    tap: 'panelAll',
+    doubleTap: 'panelImage',
+    longPress: 'openApp',
+    swipeUp: 'panelAll',
+    swipeDown: 'panelText',
+    swipeLeft: 'panelFav',
+    swipeRight: 'panelFile',
+  }, // 默认手势映射
 };
 
 /**

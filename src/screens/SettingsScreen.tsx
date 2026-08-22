@@ -59,6 +59,42 @@ import {
 import { Plus, RefreshCw, ChevronDown, ChevronUp } from 'react-native-feather';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { hasOverlayPermission, requestOverlayPermission } from 'clipboard-overlay';
+import { resetFloatingBallPosition, type FloatingBallGesture } from 'floating-ball';
+
+/** 悬浮球可配置的手势列表 */
+const FLOATING_BALL_GESTURES: FloatingBallGesture[] = [
+  'tap',
+  'doubleTap',
+  'longPress',
+  'swipeUp',
+  'swipeDown',
+  'swipeLeft',
+  'swipeRight',
+];
+
+/** 手势默认动作（与原生 DEFAULT_ACTIONS 保持一致） */
+const DEFAULT_GESTURE_ACTION: Record<string, string> = {
+  tap: 'panelAll',
+  doubleTap: 'panelImage',
+  longPress: 'openApp',
+  swipeUp: 'panelAll',
+  swipeDown: 'panelText',
+  swipeLeft: 'panelFav',
+  swipeRight: 'panelFile',
+};
+
+/** 悬浮球动作选项（labelKey 为完整 i18n 键，as const 保证类型安全） */
+const FLOATING_BALL_ACTION_OPTIONS = [
+  { value: 'panelAll', labelKey: 'settings.action_panelAll' },
+  { value: 'panelText', labelKey: 'settings.action_panelText' },
+  { value: 'panelImage', labelKey: 'settings.action_panelImage' },
+  { value: 'panelFile', labelKey: 'settings.action_panelFile' },
+  { value: 'panelFav', labelKey: 'settings.action_panelFav' },
+  { value: 'openApp', labelKey: 'settings.action_openApp' },
+  { value: 'upload', labelKey: 'settings.action_upload' },
+  { value: 'download', labelKey: 'settings.action_download' },
+  { value: 'none', labelKey: 'settings.action_none' },
+] as const;
 import {
   getSupportedAbis,
   isIgnoringBatteryOptimizations,
@@ -123,6 +159,10 @@ export const SettingsScreen = () => {
     setTempDisabledBackgroundTasks,
     setAutoSaveSyncFile,
     setSyncFileSavePath,
+    setFloatingBallEnabled,
+    setFloatingBallSize,
+    setFloatingBallOpacity,
+    setFloatingBallGestures,
     updateNetworkAutoSwitch,
   } = useSettingsStore();
 
@@ -173,6 +213,18 @@ export const SettingsScreen = () => {
   const [localForegroundNotification, setLocalForegroundNotification] = useState(
     config?.enableForegroundNotification ?? true
   );
+  const [localFloatingBallEnabled, setLocalFloatingBallEnabled] = useState(
+    config?.floatingBallEnabled ?? false
+  );
+  const [localFloatingBallSize, setLocalFloatingBallSize] = useState(
+    config?.floatingBallSize ?? 48
+  );
+  const [localFloatingBallOpacity, setLocalFloatingBallOpacity] = useState(
+    config?.floatingBallOpacity ?? 0.8
+  );
+  const [localFloatingBallGestures, setLocalFloatingBallGestures] = useState<
+    Record<string, string>
+  >(config?.floatingBallGestures ?? {});
   const [localSyncToastEnabled, setLocalSyncToastEnabled] = useState(
     config?.syncToastEnabled ?? true
   );
@@ -280,6 +332,22 @@ export const SettingsScreen = () => {
   useEffect(() => {
     setLocalForegroundNotification(config?.enableForegroundNotification ?? true);
   }, [config?.enableForegroundNotification]);
+
+  useEffect(() => {
+    setLocalFloatingBallEnabled(config?.floatingBallEnabled ?? false);
+  }, [config?.floatingBallEnabled]);
+
+  useEffect(() => {
+    setLocalFloatingBallSize(config?.floatingBallSize ?? 48);
+  }, [config?.floatingBallSize]);
+
+  useEffect(() => {
+    setLocalFloatingBallOpacity(config?.floatingBallOpacity ?? 0.8);
+  }, [config?.floatingBallOpacity]);
+
+  useEffect(() => {
+    setLocalFloatingBallGestures(config?.floatingBallGestures ?? {});
+  }, [config?.floatingBallGestures]);
 
   useEffect(() => {
     setLocalSyncToastEnabled(config?.syncToastEnabled ?? true);
@@ -702,6 +770,40 @@ export const SettingsScreen = () => {
       );
     } catch (error: unknown) {
       setLocalClipboardOverlayEnabled(!enabled);
+      showMessage(error instanceof Error ? error.message : t('common.setFailed'), 'error');
+    }
+  };
+
+  // 处理切换悬浮球
+  const handleToggleFloatingBall = async (enabled: boolean) => {
+    if (enabled && Platform.OS === 'android') {
+      if (!hasOverlayPermission()) {
+        requestOverlayPermission();
+        return;
+      }
+    }
+
+    setLocalFloatingBallEnabled(enabled);
+
+    try {
+      await setFloatingBallEnabled(enabled);
+      showMessage(
+        enabled ? t('settings.floatingBallEnabled') : t('settings.floatingBallDisabled'),
+        'success'
+      );
+    } catch (error: unknown) {
+      setLocalFloatingBallEnabled(!enabled);
+      showMessage(error instanceof Error ? error.message : t('common.setFailed'), 'error');
+    }
+  };
+
+  // 处理悬浮球手势映射变更
+  const handleFloatingBallGestureChange = async (gesture: string, action: string) => {
+    const next = { ...localFloatingBallGestures, [gesture]: action };
+    setLocalFloatingBallGestures(next);
+    try {
+      await setFloatingBallGestures(next);
+    } catch (error: unknown) {
       showMessage(error instanceof Error ? error.message : t('common.setFailed'), 'error');
     }
   };
@@ -1753,6 +1855,69 @@ export const SettingsScreen = () => {
               value={localBackgroundTasksEnabled && localShizukuClipboardEnabled}
               onChange={handleToggleShizukuClipboard}
               disabled={!localBackgroundTasksEnabled}
+            />
+          </SettingsSection>
+        )}
+
+        {/* 悬浮球部分 */}
+        {Platform.OS === 'android' && (
+          <SettingsSection title={t('settings.floatingBallSection')}>
+            <SettingSwitch
+              label={t('settings.floatingBall')}
+              description={t('settings.floatingBallDesc')}
+              value={localFloatingBallEnabled}
+              onChange={handleToggleFloatingBall}
+            />
+
+            <SettingDropdown
+              label={t('settings.floatingBallSize')}
+              value={String(localFloatingBallSize)}
+              options={[
+                { label: t('settings.floatingBallSizeSmall'), value: '36' },
+                { label: t('settings.floatingBallSizeMedium'), value: '48' },
+                { label: t('settings.floatingBallSizeLarge'), value: '60' },
+              ]}
+              onChange={(value) => setFloatingBallSize(Number(value))}
+              disabled={!localFloatingBallEnabled}
+            />
+
+            <SettingDropdown
+              label={t('settings.floatingBallOpacity')}
+              value={String(localFloatingBallOpacity)}
+              options={[
+                { label: '100%', value: '1' },
+                { label: '80%', value: '0.8' },
+                { label: '60%', value: '0.6' },
+              ]}
+              onChange={(value) => setFloatingBallOpacity(Number(value))}
+              disabled={!localFloatingBallEnabled}
+            />
+
+            {FLOATING_BALL_GESTURES.map((gesture) => (
+              <SettingDropdown
+                key={gesture}
+                label={t(`settings.gesture_${gesture}`)}
+                value={
+                  localFloatingBallGestures[gesture] ?? DEFAULT_GESTURE_ACTION[gesture] ?? 'none'
+                }
+                options={FLOATING_BALL_ACTION_OPTIONS.map(({ value, labelKey }) => ({
+                  label: t(labelKey),
+                  value,
+                }))}
+                onChange={(value) => handleFloatingBallGestureChange(gesture, value)}
+                disabled={!localFloatingBallEnabled}
+              />
+            ))}
+
+            <SettingAction
+              label={t('settings.floatingBallResetPosition')}
+              buttonText={t('settings.floatingBallResetButton')}
+              buttonStyle="secondary"
+              onPress={() => {
+                resetFloatingBallPosition();
+                showMessage(t('settings.floatingBallPositionReset'), 'success');
+              }}
+              disabled={!localFloatingBallEnabled}
             />
           </SettingsSection>
         )}

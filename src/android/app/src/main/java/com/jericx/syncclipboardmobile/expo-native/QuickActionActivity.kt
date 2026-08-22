@@ -20,6 +20,7 @@ class QuickActionActivity : ReactActivity() {
 
     companion object {
         const val EXTRA_DIRECTION = "direction"
+        const val EXTRA_PANEL_TYPE = "panelType"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,6 +43,10 @@ class QuickActionActivity : ReactActivity() {
                     return Bundle().apply {
                         val direction = intent?.getStringExtra(EXTRA_DIRECTION) ?: "download"
                         putString("direction", direction)
+                        val panelType = intent?.getStringExtra(EXTRA_PANEL_TYPE)
+                        if (!panelType.isNullOrBlank()) {
+                            putString("panelType", panelType)
+                        }
                         putString("systemTheme", if (isDarkMode) "dark" else "light")
                     }
                 }
