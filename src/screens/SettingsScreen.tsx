@@ -162,6 +162,7 @@ export const SettingsScreen = () => {
     setFloatingBallEnabled,
     setFloatingBallSize,
     setFloatingBallOpacity,
+    setFloatingBallLocked,
     setFloatingBallGestures,
     updateNetworkAutoSwitch,
   } = useSettingsStore();
@@ -221,6 +222,9 @@ export const SettingsScreen = () => {
   );
   const [localFloatingBallOpacity, setLocalFloatingBallOpacity] = useState(
     config?.floatingBallOpacity ?? 0.8
+  );
+  const [localFloatingBallLocked, setLocalFloatingBallLocked] = useState(
+    config?.floatingBallLocked ?? true
   );
   const [localFloatingBallGestures, setLocalFloatingBallGestures] = useState<
     Record<string, string>
@@ -344,6 +348,10 @@ export const SettingsScreen = () => {
   useEffect(() => {
     setLocalFloatingBallOpacity(config?.floatingBallOpacity ?? 0.8);
   }, [config?.floatingBallOpacity]);
+
+  useEffect(() => {
+    setLocalFloatingBallLocked(config?.floatingBallLocked ?? true);
+  }, [config?.floatingBallLocked]);
 
   useEffect(() => {
     setLocalFloatingBallGestures(config?.floatingBallGestures ?? {});
@@ -793,6 +801,17 @@ export const SettingsScreen = () => {
       );
     } catch (error: unknown) {
       setLocalFloatingBallEnabled(!enabled);
+      showMessage(error instanceof Error ? error.message : t('common.setFailed'), 'error');
+    }
+  };
+
+  // 处理切换悬浮球位置锁定
+  const handleToggleFloatingBallLocked = async (locked: boolean) => {
+    setLocalFloatingBallLocked(locked);
+    try {
+      await setFloatingBallLocked(locked);
+    } catch (error: unknown) {
+      setLocalFloatingBallLocked(!locked);
       showMessage(error instanceof Error ? error.message : t('common.setFailed'), 'error');
     }
   };
@@ -1890,6 +1909,14 @@ export const SettingsScreen = () => {
                 { label: '60%', value: '0.6' },
               ]}
               onChange={(value) => setFloatingBallOpacity(Number(value))}
+              disabled={!localFloatingBallEnabled}
+            />
+
+            <SettingSwitch
+              label={t('settings.floatingBallLocked')}
+              description={t('settings.floatingBallLockedDesc')}
+              value={localFloatingBallLocked}
+              onChange={handleToggleFloatingBallLocked}
               disabled={!localFloatingBallEnabled}
             />
 

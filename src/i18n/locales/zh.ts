@@ -265,6 +265,8 @@ const zh = {
     floatingBallSizeMedium: '中',
     floatingBallSizeLarge: '大',
     floatingBallOpacity: '不透明度',
+    floatingBallLocked: '锁定悬浮球位置',
+    floatingBallLockedDesc: '锁定时悬浮球不可拖动，关闭后可拖动到任意位置',
     gesture_tap: '单击',
     gesture_doubleTap: '双击',
     gesture_longPress: '长按',

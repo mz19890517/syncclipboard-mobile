@@ -74,8 +74,16 @@ export function FloatingClipboardPanelScreen({
   const [busy, setBusy] = useState<'upload' | 'download' | null>(null);
 
   useEffect(() => {
-    searchItems(buildFilter(activeTab)).catch(() => {});
-  }, [activeTab, searchItems]);
+    searchItems(buildFilter(activeTab))
+      .then(() => {
+        const count = useHistoryStore.getState().items.length;
+        console.log(`[FloatingPanel] tab=${activeTab} search done, store items=${count}`);
+      })
+      .catch((e: unknown) => {
+        console.error('[FloatingPanel] search failed:', e);
+        showMessage(e instanceof Error ? e.message : String(e), 'error');
+      });
+  }, [activeTab, searchItems, showMessage]);
 
   const handleClose = useCallback(() => {
     onComplete();

@@ -166,6 +166,8 @@ interface SettingsState {
   /** 设置悬浮球不透明度 */
   setFloatingBallOpacity: (opacity: number) => Promise<void>;
 
+  setFloatingBallLocked: (locked: boolean) => Promise<void>;
+
   /** 设置悬浮球手势映射 */
   setFloatingBallGestures: (gestures: Record<string, string>) => Promise<void>;
 
@@ -476,6 +478,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setFloatingBallOpacity: async (opacity: number) => {
     await get().updateConfig({ floatingBallOpacity: opacity });
+  },
+
+  setFloatingBallLocked: async (locked: boolean) => {
+    await get().updateConfig({ floatingBallLocked: locked });
   },
 
   setFloatingBallGestures: async (gestures: Record<string, string>) => {

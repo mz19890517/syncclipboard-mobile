@@ -51,7 +51,7 @@ class FloatingBallModule : Module() {
 
         Function("isShowing") { ballView != null }
 
-        Function("show") { sizeDp: Double, opacity: Double, actions: Map<String, String> ->
+        Function("show") { sizeDp: Double, opacity: Double, locked: Boolean, actions: Map<String, String> ->
             val context = appContext.reactContext ?: return@Function false
             if (!Settings.canDrawOverlays(context)) return@Function false
             if (actions.isNotEmpty()) {
@@ -59,7 +59,7 @@ class FloatingBallModule : Module() {
             } else {
                 currentActions = DEFAULT_ACTIONS
             }
-            showBall(context, sizeDp.toInt().coerceIn(28, 96), opacity.toFloat())
+            showBall(context, sizeDp.toInt().coerceIn(28, 96), opacity.toFloat(), locked)
             true
         }
 
@@ -67,12 +67,13 @@ class FloatingBallModule : Module() {
             removeBall()
         }
 
-        Function("updateConfig") { sizeDp: Double, opacity: Double, actions: Map<String, String> ->
+        Function("updateConfig") { sizeDp: Double, opacity: Double, locked: Boolean, actions: Map<String, String> ->
             val context = appContext.reactContext ?: return@Function false
             if (actions.isNotEmpty()) {
                 currentActions = DEFAULT_ACTIONS + actions.filterKeys { it.isNotBlank() }
             }
             val view = ballView ?: return@Function false
+            view.isLocked = locked
             val lp = layoutParams ?: return@Function false
             val sizePx = dp2px(context, sizeDp.toInt().coerceIn(28, 96))
             lp.width = sizePx
@@ -85,6 +86,11 @@ class FloatingBallModule : Module() {
 
         Function("resetPosition") {
             prefs?.edit()?.clear()?.apply()
+            // 球在显示中时同步回到默认位置（右侧、屏幕上三分之一处）
+            val view = ballView ?: return@Function
+            val context = appContext.reactContext ?: return@Function
+            val screenWidth = context.resources.displayMetrics.widthPixels
+            view.jumpTo(screenWidth - view.width, context.resources.displayMetrics.heightPixels / 3)
         }
 
         Function("openMainApp") {
@@ -104,9 +110,10 @@ class FloatingBallModule : Module() {
         (dp * context.resources.displayMetrics.density).toInt()
 
     @SuppressLint("InflateParams")
-    private fun showBall(context: Context, sizeDp: Int, opacity: Float) {
+    private fun showBall(context: Context, sizeDp: Int, opacity: Float, locked: Boolean) {
         if (ballView != null) {
             updateConfigInternal(context, sizeDp, opacity)
+            ballView?.isLocked = locked
             return
         }
         val sizePx = dp2px(context, sizeDp)
@@ -140,6 +147,7 @@ class FloatingBallModule : Module() {
         }
 
         view.setWindowPosition(initialX, initialY)
+        view.isLocked = locked
         windowManager(context)?.addView(view, lp)
         ballView = view
         layoutParams = lp

@@ -39,6 +39,8 @@ class FloatingBallView(
         private const val FLICK_MIN_DISTANCE_DP = 50f
         private const val FLICK_MIN_VELOCITY = 1800f // px/s
         private const val GESTURE_NONE = ""
+        /** 贴边停靠后露出屏幕内的宽度（dp），FV 悬浮球式"细条" */
+        private const val DOCK_PEEK_DP = 8
     }
 
     private val density = resources.displayMetrics.density
@@ -62,11 +64,12 @@ class FloatingBallView(
     private var downRawY = 0f
     private var downTime = 0L
     private var isDragging = false
-    private var startLpX = 0
-    private var startLpY = 0
     private var lastMoveTime = 0L
     private var lastMoveX = 0f
     private var lastMoveY = 0f
+    // 增量拖动的小数余量累积，避免 toInt 取整造成的漂移
+    private var pendingDx = 0f
+    private var pendingDy = 0f
     private var velocityX = 0f
     private var velocityY = 0f
     private var longPressFired = false
@@ -76,6 +79,20 @@ class FloatingBallView(
     private var pendingSingleTap: Runnable? = null
     private var longPressRunnable: Runnable? = null
     private var animator: ValueAnimator? = null
+
+    /** 位置锁定：锁定时手势可用但不可拖动 */
+    @Volatile
+    var isLocked = true
+        set(value) {
+            field = value
+            if (value && isDragging) {
+                isDragging = false
+                snapToNearestEdge(save = false)
+            }
+        }
+
+    /** 当前停靠状态：'l'/'r' 为贴边细条，null 为完全可见 */
+    private var dockedSide: Char? = null
 
     /** 当前窗口坐标，由 Module 同步 */
     var lpX = 0
@@ -144,20 +161,24 @@ class FloatingBallView(
                 lastMoveTime = downTime
                 lastMoveX = downRawX
                 lastMoveY = downRawY
+                pendingDx = 0f
+                pendingDy = 0f
                 velocityX = 0f
                 velocityY = 0f
                 isDragging = false
                 longPressFired = false
+                if (dockedSide != null) undock()
                 parent?.requestDisallowInterceptTouchEvent(true)
                 scheduleLongPress(event)
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
-                val dx = event.rawX - downRawX
-                val dy = event.rawY - downRawY
-                if (!isDragging && hypot(dx, dy) > touchSlop) {
-                    isDragging = true
+                val dxTotal = event.rawX - downRawX
+                val dyTotal = event.rawY - downRawY
+                if (!isDragging && hypot(dxTotal, dyTotal) > touchSlop) {
                     cancelLongPressTimer()
+                    // 锁定时只取消长按，不进入拖动（滑动仍可触发轻扫手势）
+                    isDragging = !isLocked
                 }
                 if (isDragging) {
                     val now = System.currentTimeMillis()
@@ -166,10 +187,20 @@ class FloatingBallView(
                     val instVY = (event.rawY - lastMoveY) / dt * 1000f
                     velocityX = velocityX * 0.7f + instVX * 0.3f
                     velocityY = velocityY * 0.7f + instVY * 0.3f
+                    val stepX = event.rawX - lastMoveX
+                    val stepY = event.rawY - lastMoveY
                     lastMoveTime = now
                     lastMoveX = event.rawX
                     lastMoveY = event.rawY
-                    moveBy(dx.toInt(), dy.toInt())
+                    pendingDx += stepX
+                    pendingDy += stepY
+                    val appliedX = pendingDx.toInt()
+                    val appliedY = pendingDy.toInt()
+                    if (appliedX != 0 || appliedY != 0) {
+                        pendingDx -= appliedX
+                        pendingDy -= appliedY
+                        moveBy(appliedX, appliedY)
+                    }
                 }
                 return true
             }
@@ -190,7 +221,9 @@ class FloatingBallView(
         val totalDy = event.rawY - downRawY
         val totalDist = hypot(totalDx, totalDy)
 
-        if (!isDragging && !longPressFired && duration >= LONG_PRESS_TIMEOUT * 0.9) {
+        if (!isDragging && !longPressFired && duration >= LONG_PRESS_TIMEOUT * 0.9 &&
+            totalDist <= touchSlop
+        ) {
             // 极端情况：长按已超时但 handler 未触发
             onGesture("longPress")
             return
@@ -201,23 +234,29 @@ class FloatingBallView(
             return
         }
 
-        if (isDragging) {
-            val speed = hypot(velocityX, velocityY)
-            val dominantX = abs(totalDx) >= abs(totalDy)
-            val flickDistance = if (dominantX) abs(totalDx) else abs(totalDy)
-            val minDistPx = FLICK_MIN_DISTANCE_DP * density
-            if (duration <= FLICK_MAX_DURATION && flickDistance >= minDistPx && speed >= FLICK_MIN_VELOCITY) {
-                val gesture = when {
-                    dominantX && totalDx > 0 -> "swipeRight"
-                    dominantX -> "swipeLeft"
-                    totalDy > 0 -> "swipeDown"
-                    else -> "swipeUp"
-                }
-                snapToNearestEdge(save = false)
-                onGesture(gesture)
-            } else {
-                snapToNearestEdge(save = true)
+        // 轻扫判定与是否拖动过无关（锁定位置时依然可触发滑动手势）
+        val speed = hypot(velocityX, velocityY)
+        val dominantX = abs(totalDx) >= abs(totalDy)
+        val flickDistance = if (dominantX) abs(totalDx) else abs(totalDy)
+        val minDistPx = FLICK_MIN_DISTANCE_DP * density
+        val isFlick =
+            duration <= FLICK_MAX_DURATION && flickDistance >= minDistPx && speed >= FLICK_MIN_VELOCITY
+
+        if (isFlick) {
+            val gesture = when {
+                dominantX && totalDx > 0 -> "swipeRight"
+                dominantX -> "swipeLeft"
+                totalDy > 0 -> "swipeDown"
+                else -> "swipeUp"
             }
+            if (!isDragging && dockedSide != null) {
+                // 停靠中直接触发轻扫手势：保持细条状态不弹跳
+            } else {
+                snapToNearestEdge(save = false)
+            }
+            onGesture(gesture)
+        } else if (isDragging) {
+            snapToNearestEdge(save = true)
         }
     }
 
@@ -265,17 +304,48 @@ class FloatingBallView(
         onPositionChanged(lpX, lpY)
     }
 
-    /** 吸附到最近的左右边缘；save 为真时回调保存最终坐标 */
+    /** 直接跳到指定位置（清除停靠状态，不动画） */
+    fun jumpTo(x: Int, y: Int) {
+        cancelAnimations()
+        dockedSide = null
+        lpX = x.coerceAtLeast(0)
+        lpY = y.clampToScreenY()
+        onPositionChanged(lpX, lpY)
+    }
+
+    /** 吸附到最近的左右边缘；save 为真时回调保存最终坐标。吸附后停靠为细条 */
     fun snapToNearestEdge(save: Boolean) {
         val screenWidth = resources.displayMetrics.widthPixels
-        val targetX = if (lpX + width / 2 < screenWidth / 2) 0 else screenWidth - width
-        animateTo(targetX, lpY.clampToScreenY(), save)
+        val side = if (lpX + width / 2 < screenWidth / 2) 'l' else 'r'
+        val exposedX = if (side == 'l') 0 else screenWidth - width
+        animateTo(exposedX, lpY.clampToScreenY()) {
+            if (save) onPositionSaved(lpX, lpY.clampToScreenY())
+            dockToSide(side)
+        }
+    }
+
+    /** 停靠为贴边细条：大部分移出屏幕，只留一条可触摸的边 */
+    private fun dockToSide(side: Char) {
+        dockedSide = side
+        val peek = (DOCK_PEEK_DP * density).toInt()
+        val screenWidth = resources.displayMetrics.widthPixels
+        lpX = if (side == 'l') -(width - peek) else screenWidth - peek
+        onPositionChanged(lpX, lpY.clampToScreenY())
+    }
+
+    /** 从停靠状态弹出恢复完全可见（按下时调用） */
+    private fun undock() {
+        val side = dockedSide ?: return
+        dockedSide = null
+        val screenWidth = resources.displayMetrics.widthPixels
+        lpX = if (side == 'l') 0 else (screenWidth - width).coerceAtLeast(0)
+        onPositionChanged(lpX, lpY.clampToScreenY())
     }
 
     private fun Int.clampToScreenY(): Int =
         coerceIn(0, (resources.displayMetrics.heightPixels - this@FloatingBallView.height).coerceAtLeast(0))
 
-    fun animateTo(targetX: Int, targetY: Int, save: Boolean) {
+    fun animateTo(targetX: Int, targetY: Int, onComplete: (() -> Unit)? = null) {
         cancelAnimations()
         val startX = lpX
         val startY = lpY
@@ -289,7 +359,7 @@ class FloatingBallView(
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
-                    if (save) onPositionSaved(lpX, lpY)
+                    onComplete?.invoke()
                 }
             })
             start()

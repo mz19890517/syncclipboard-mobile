@@ -32,9 +32,14 @@ export type FloatingBallGestureMap = Partial<Record<FloatingBallGesture, Floatin
 
 interface FloatingBallModuleInterface {
   isShowing(): boolean;
-  show(sizeDp: number, opacity: number, actions: Record<string, string>): boolean;
+  show(sizeDp: number, opacity: number, locked: boolean, actions: Record<string, string>): boolean;
   hide(): void;
-  updateConfig(sizeDp: number, opacity: number, actions: Record<string, string>): boolean;
+  updateConfig(
+    sizeDp: number,
+    opacity: number,
+    locked: boolean,
+    actions: Record<string, string>
+  ): boolean;
   resetPosition(): void;
   openMainApp(): boolean;
 }
@@ -44,15 +49,17 @@ const nativeModule: FloatingBallModuleInterface | null =
 
 /**
  * 显示悬浮球
+ * @param locked 锁定位置时不可拖动（默认锁定）
  * @returns 权限不足或平台不支持时返回 false
  */
 export function showFloatingBall(
   sizeDp: number,
   opacity: number,
+  locked = true,
   actions: FloatingBallGestureMap = {}
 ): boolean {
   if (!nativeModule) return false;
-  return nativeModule.show(sizeDp, opacity, sanitizeActions(actions));
+  return nativeModule.show(sizeDp, opacity, locked, sanitizeActions(actions));
 }
 
 /** 隐藏悬浮球 */
@@ -67,14 +74,15 @@ export function isFloatingBallShowing(): boolean {
   return nativeModule.isShowing();
 }
 
-/** 运行时更新大小/透明度/手势映射 */
+/** 运行时更新大小/透明度/锁定/手势映射 */
 export function updateFloatingBallConfig(
   sizeDp: number,
   opacity: number,
+  locked = true,
   actions: FloatingBallGestureMap = {}
 ): boolean {
   if (!nativeModule) return false;
-  return nativeModule.updateConfig(sizeDp, opacity, sanitizeActions(actions));
+  return nativeModule.updateConfig(sizeDp, opacity, locked, sanitizeActions(actions));
 }
 
 /** 清除记忆的悬浮球位置 */
