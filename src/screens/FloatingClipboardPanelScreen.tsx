@@ -6,8 +6,15 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Dimensions } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Alert,
+  FlatList,
+  useWindowDimensions,
+} from 'react-native';
 import { X } from 'react-native-feather';
 import { useTranslation } from 'react-i18next';
 import { HistoryListItem } from '@/components/HistoryListItem';
@@ -173,7 +180,9 @@ export function FloatingClipboardPanelScreen({
     onComplete();
   }, [onComplete]);
 
-  const listHeight = useMemo(() => Dimensions.get('window').height * 0.62, []);
+  const { height: windowHeight } = useWindowDimensions();
+  // 保底高度：透明悬浮窗口里 Dimensions 可能返回 0 或异常值，导致整块列表不可见
+  const listHeight = useMemo(() => Math.max(220, Math.round(windowHeight * 0.55)), [windowHeight]);
 
   const styles = useMemo(
     () =>
@@ -193,6 +202,12 @@ export function FloatingClipboardPanelScreen({
           marginBottom: 8,
         },
         title: { fontSize: 17, fontWeight: '600', color: theme.colors.text, flex: 1 },
+        countBadge: {
+          fontSize: 12,
+          color: theme.colors.text,
+          opacity: 0.6,
+          marginRight: 8,
+        },
         closeButton: { padding: 6 },
         tabs: { flexDirection: 'row', paddingHorizontal: 12, gap: 8, marginBottom: 8 },
         tab: {
@@ -205,6 +220,7 @@ export function FloatingClipboardPanelScreen({
         tabText: { fontSize: 13, color: theme.colors.text },
         tabTextActive: { color: '#FFFFFF', fontWeight: '600' },
         list: { paddingHorizontal: 8, flexGrow: 0 },
+        listContainer: { flexGrow: 0 },
         empty: { textAlign: 'center', color: theme.colors.text, opacity: 0.5, paddingVertical: 40 },
         bottomBar: {
           flexDirection: 'row',
@@ -247,6 +263,7 @@ export function FloatingClipboardPanelScreen({
       <Pressable style={styles.panel} onPress={(e) => e.stopPropagation()}>
         <View style={styles.header}>
           <Text style={styles.title}>{t('floatingPanel.title')}</Text>
+          <Text style={styles.countBadge}>{t('floatingPanel.count', { count: items.length })}</Text>
           <Pressable style={styles.closeButton} onPress={handleClose} hitSlop={8}>
             <X color={theme.colors.text} width={22} height={22} />
           </Pressable>
@@ -266,23 +283,25 @@ export function FloatingClipboardPanelScreen({
           ))}
         </View>
 
-        <FlashList
-          data={items}
-          keyExtractor={(item) => `${item.profileHash}_${item.timestamp}`}
-          contentContainerStyle={styles.list}
-          style={{ height: listHeight }}
-          renderItem={({ item }) => (
-            <HistoryListItem
-              item={item}
-              onCopy={handleCopy}
-              onShare={async () => handleCopy(item)}
-              onLongPress={handleLongPress}
-              onToggleStar={async (starItem) => toggleStar(starItem.profileHash)}
-              showImageCopyButton
-            />
-          )}
-          ListEmptyComponent={<Text style={styles.empty}>{t('floatingPanel.empty')}</Text>}
-        />
+        <View style={{ height: listHeight }}>
+          <FlatList
+            data={items}
+            keyExtractor={(item) => `${item.profileHash}_${item.timestamp}`}
+            contentContainerStyle={styles.list}
+            style={styles.listContainer}
+            renderItem={({ item }) => (
+              <HistoryListItem
+                item={item}
+                onCopy={handleCopy}
+                onShare={async () => handleCopy(item)}
+                onLongPress={handleLongPress}
+                onToggleStar={async (starItem) => toggleStar(starItem.profileHash)}
+                showImageCopyButton
+              />
+            )}
+            ListEmptyComponent={<Text style={styles.empty}>{t('floatingPanel.empty')}</Text>}
+          />
+        </View>
 
         <View style={styles.bottomBar}>
           {renderBottomButton(t('floatingPanel.openApp'), handleOpenApp)}

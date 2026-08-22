@@ -631,6 +631,7 @@ const zh = {
 
   floatingPanel: {
     title: '剪贴板',
+    count: '{{count}} 条',
     empty: '暂无记录',
     openApp: '打开应用',
     upload: '上传剪贴板',

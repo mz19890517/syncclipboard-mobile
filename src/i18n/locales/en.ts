@@ -642,6 +642,7 @@ const en: DeepString<typeof zh> = {
 
   floatingPanel: {
     title: 'Clipboard',
+    count: '{{count}} items',
     empty: 'No records',
     openApp: 'Open app',
     upload: 'Upload clipboard',
