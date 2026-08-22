@@ -157,7 +157,7 @@ class FloatingBallView(
                 val dy = event.rawY - downRawY
                 if (!isDragging && hypot(dx, dy) > touchSlop) {
                     isDragging = true
-                    cancelLongPress()
+                    cancelLongPressTimer()
                 }
                 if (isDragging) {
                     val now = System.currentTimeMillis()
@@ -175,7 +175,7 @@ class FloatingBallView(
             }
             MotionEvent.ACTION_UP -> finishTouch(event)
             MotionEvent.ACTION_CANCEL -> {
-                cancelLongPress()
+                cancelLongPressTimer()
                 if (isDragging) snapToNearestEdge(save = false)
             }
         }
@@ -183,7 +183,7 @@ class FloatingBallView(
     }
 
     private fun finishTouch(event: MotionEvent) {
-        cancelLongPress()
+        cancelLongPressTimer()
         val upTime = System.currentTimeMillis()
         val duration = upTime - downTime
         val totalDx = event.rawX - downRawX
@@ -254,7 +254,7 @@ class FloatingBallView(
         longPressHandler.postDelayed(runnable, LONG_PRESS_TIMEOUT)
     }
 
-    private fun cancelLongPress() {
+    private fun cancelLongPressTimer() {
         longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
         longPressRunnable = null
     }
@@ -302,7 +302,7 @@ class FloatingBallView(
     }
 
     fun cleanup() {
-        cancelLongPress()
+        cancelLongPressTimer()
         pendingSingleTap?.let { tapHandler.removeCallbacks(it) }
         cancelAnimations()
     }
